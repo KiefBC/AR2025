@@ -29,9 +29,22 @@
 		FB0CD1C12D8B62A200C2B76F /* AR2025UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AR2025UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FBC526E42D8B689F0000862E /* Exceptions for "AR2025" folder in "AR2025" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FB0CD1A62D8B62A100C2B76F /* AR2025 */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FB0CD1A92D8B62A100C2B76F /* AR2025 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FBC526E42D8B689F0000862E /* Exceptions for "AR2025" folder in "AR2025" target */,
+			);
 			path = AR2025;
 			sourceTree = "<group>";
 		};
