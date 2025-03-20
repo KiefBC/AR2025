@@ -1,6 +1,7 @@
 import SwiftUI
 import RealityKit
 import ARKit
+import Combine
 
 struct ContentView: View {
     // State variables to track position
@@ -8,7 +9,6 @@ struct ContentView: View {
     @State private var x: Double = 0.0
     @State private var y: Double = 0.0
     @State private var z: Double = 0.0
-    
     @State private var audio: AudioFileResource?
     @State private var subscriptions = [EventSubscription]() // Keep track of subscriptions
     
@@ -23,7 +23,7 @@ struct ContentView: View {
                 Spacer()
                 
                 VStack(spacing: 15) {
-                    Text("Teapot Position Controls")
+                    Text("Main Teapot Controls")
                         .font(.headline)
                     
                     HStack {
@@ -73,50 +73,67 @@ struct ARContentView: View {
                 )
             )
             
-            // Load and place the teapot
-            if let teapot = try? await ModelEntity(named: "teapot") {
-                teapot.position = [0, 0, -0.5] // 50cm in front of the camera
+            // Load and place the main teapot
+            if let mainTeapot = try? await ModelEntity(named: "teapot") {
+                mainTeapot.position = [0, 0, -0.5] // 50cm in front of the camera
                 // Generate default collision shapes for all mesh parts
-                teapot.physicsBody? = PhysicsBodyComponent()
-                teapot.physicsBody?.mode = .dynamic
-                teapot.generateCollisionShapes(recursive: false)
-                teapot.name = "teapot" // Set a name to identify it later
-                anchor.addChild(teapot)
+                mainTeapot.physicsBody = PhysicsBodyComponent()
+                mainTeapot.physicsBody?.mode = .dynamic
+                mainTeapot.generateCollisionShapes(recursive: false)
+                mainTeapot.name = "mainTeapot" // Set a name to identify it later
+                anchor.addChild(mainTeapot)
                 
-                // Optional: Add spatial audio component
-                teapot.spatialAudio = SpatialAudioComponent(directivity: .beam(focus: 0.75))
-                
-                // Enable tapping on the teapot
-                teapot.components.set(InputTargetComponent())
+                // Add spatial audio component
+                mainTeapot.spatialAudio = SpatialAudioComponent(directivity: .beam(focus: 0.75))
             }
             
-            // Load and place the TV
-            if let tv = try? await ModelEntity(named: "tv_retro") {
-                tv.position = [0, 0, -0.5] // Position to the right of the teapot
-                // tv.scale = [0.1, 0.1, 0.1] // Scale down the TV as these models can be large
-                // Generate default collision shapes for all mesh parts
-                tv.physicsBody? = PhysicsBodyComponent()
-                tv.physicsBody?.mode = .dynamic
-                tv.generateCollisionShapes(recursive: false)
-                tv.name = "tv" // Set a name to identify it later
+            // Create 3 orbital teapots
+            for i in 0..<3 {
+                async let teapotModel = ModelEntity(named: "teapot")
                 
-                let orbit = OrbitAnimation(duration: 5.0,
-                                                               axis: [1,0,0],
-                                                     startTransform: tv.transform,
-                                                         bindTarget: .transform,
-                                                         repeatMode: .repeat)
+                // Create an entity to serve as the orbit center
+                let orbitEntity = Entity()
+                orbitEntity.position = [0, Float(i) * 0.1, -0.5] // Different heights for each orbit
+                orbitEntity.name = "orbitCenter\(i)"
                 
-                if let animation = try? AnimationResource.generate(with: orbit) {
-                                    tv.playAnimation(animation)
-                                }
-                
-                anchor.addChild(tv)
-                
-                // Add spatial audio component to TV as well
-                tv.spatialAudio = SpatialAudioComponent(directivity: .beam(focus: 0.75))
-                
-                // Enable tapping on the TV
-                tv.components.set(InputTargetComponent())
+                if let orbitTeapot = try? await teapotModel {
+                    // Position teapot at an offset from center
+                    let radius: Float = 0.3 + Float(i) * 0.1 // Different radius for each teapot
+                    let angle = Float(i) * (2 * .pi / 3) // Distribute teapots evenly
+                    
+                    orbitTeapot.position = [radius, 0, 0] // Position relative to orbit center
+                    orbitTeapot.scale = [0.6, 0.6, 0.6] // Scale down
+                    
+                    // Generate default collision shapes for all mesh parts
+                    orbitTeapot.physicsBody = PhysicsBodyComponent()
+                    orbitTeapot.physicsBody?.mode = .dynamic
+                    orbitTeapot.generateCollisionShapes(recursive: false)
+                    orbitTeapot.name = "orbitTeapot\(i)" // Set a unique name
+                    
+                    // Add spatial audio component
+                    orbitTeapot.spatialAudio = SpatialAudioComponent(directivity: .beam(focus: 0.75))
+                    
+                    // Add teapot to orbit entity
+                    orbitEntity.addChild(orbitTeapot)
+                    
+                    // Create orbit animation with different durations
+                    let duration = 5.0 - Double(i) * 0.5 // Different speeds: 5s, 4.5s, 4s
+                    let orbit = OrbitAnimation(
+                        duration: duration,
+                        axis: [0, 1, 0], // Rotate around Y axis
+                        startTransform: orbitEntity.transform,
+                        bindTarget: .transform,
+                        repeatMode: .repeat
+                    )
+                    
+                    // Create and play animation
+                    if let animation = try? AnimationResource.generate(with: orbit) {
+                        orbitEntity.playAnimation(animation)
+                    }
+                    
+                    // Add orbit entity to anchor
+                    anchor.addChild(orbitEntity)
+                }
             }
             
             // Load the audio resource once
@@ -143,14 +160,14 @@ struct ARContentView: View {
                     let entityB = event.entityB
                     
                     // Play sound on any of our models when they collide
-                    let collidedEntity = entityA.name == "teapot" || entityA.name == "tv" ? entityA :
-                                         entityB.name == "teapot" || entityB.name == "tv" ? entityB : nil
+                    let collidedEntity = entityA.name.hasPrefix("mainTeapot") || entityA.name.hasPrefix("orbitTeapot") ? entityA :
+                                         entityB.name.hasPrefix("mainTeapot") || entityB.name.hasPrefix("orbitTeapot") ? entityB : nil
                     
                     if let entity = collidedEntity {
                         print("\(entity.name) collision - playing sound")
-//                        try? entity.stopAllAudio()
-//                        let playbackController = try? entity.playAudio(ar)
-//                        playbackController?.gain = 5.0  // Increase volume
+                        try? entity.stopAllAudio()
+                        let playbackController = try? entity.playAudio(ar)
+                        playbackController?.gain = 5.0  // Increase volume
                     }
                 }
             })
@@ -161,13 +178,26 @@ struct ARContentView: View {
             // Enable camera pass-through with tracking
             content.camera = .spatialTracking
         } update: { content in
-            // Update block
+            // Update block - only need to update the main teapot based on sliders
             if let anchor = content.entities.first as? AnchorEntity {
-                // Only update the teapot position
                 for child in anchor.children {
-                    if child.name == "teapot", let teapot = child as? ModelEntity {
-                        // Update teapot position based on sliders
-                        teapot.transform.translation = [Float(x), Float(y), Float(z)]
+                    if child.name == "mainTeapot" {
+                        // Control main teapot with sliders
+                        child.transform.translation = [Float(x), Float(y), Float(z)]
+                        
+                        // Enable tapping
+                        if let modelEntity = child as? ModelEntity {
+                            modelEntity.components.set(InputTargetComponent())
+                        }
+                    } else if child.name.hasPrefix("orbitCenter") {
+                        // Find the teapot child to make it tappable
+                        for orbitChild in child.children {
+                            if orbitChild.name.hasPrefix("orbitTeapot") {
+                                if let modelEntity = orbitChild as? ModelEntity {
+                                    modelEntity.components.set(InputTargetComponent())
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -186,4 +216,4 @@ struct ARContentView: View {
         })
         .edgesIgnoringSafeArea(.all)
     }
-}
+} 
