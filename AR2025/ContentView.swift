@@ -102,7 +102,7 @@ struct ARContentView: View {
             }
             
             // Load and place the TV
-            if let tv = try? await ModelEntity(named: "tv_retro") {
+            if let tv = try? await ModelEntity(named: "teapot") {
                 tv.position = [0, 0, 1] // Position to the right of the teapot
                 // tv.scale = [0.1, 0.1, 0.1] // Scale down the TV as these models can be large
                 // Generate default collision shapes for all mesh parts
@@ -130,6 +130,34 @@ struct ARContentView: View {
                 tv.components.set(InputTargetComponent())
             }
             
+            if let tv2 = try? await ModelEntity(named: "teapot") {
+                tv2.position = [0, 0, 1] // Position to the right of the teapot
+                // tv.scale = [0.1, 0.1, 0.1] // Scale down the TV as these models can be large
+                // Generate default collision shapes for all mesh parts
+                tv2.physicsBody? = PhysicsBodyComponent()
+                tv2.physicsBody?.mode = .dynamic
+                tv2.generateCollisionShapes(recursive: false)
+                tv2.name = "tv" // Set a name to identify it later
+                
+                let orbit = OrbitAnimation(duration: 5.0,
+                                                               axis: [0,1,0],
+                                                     startTransform: tv2.transform,
+                                                         bindTarget: .transform,
+                                                         repeatMode: .repeat)
+                
+                if let animation = try? AnimationResource.generate(with: orbit) {
+                                    tv2.playAnimation(animation)
+                                }
+                
+                anchor.addChild(tv2)
+                
+                // Add spatial audio component to TV as well
+                tv2.spatialAudio = SpatialAudioComponent(directivity: .beam(focus: 0.75))
+                
+                // Enable tapping on the TV
+                tv2.components.set(InputTargetComponent())
+            }
+            
             // Load the audio resource once
             do {
                 let audioFile = try await AudioFileResource(
@@ -154,15 +182,15 @@ struct ARContentView: View {
                 let entityB = event.entityB
                 
                 // Only increment score if teapot and tv collide with each other
-                let teapotAndTvCollision = (entityA.name == "teapot" && entityB.name == "tv") ||
-                                          (entityA.name == "tv" && entityB.name == "teapot")
+                let teapotAndTvCollision = (entityA.name == "teapot" && entityB.name == "tv")
+//                                          (entityA.name == "tv" && entityB.name == "teapot")
                 
                 if teapotAndTvCollision {
                     // Increment score on the main thread
-                    DispatchQueue.main.async {
+//                    DispatchQueue.main.async {
                         self.score += 1
                         print("Score increased to: \(self.score)")
-                    }
+//                    }
                 }
                 
                 if let ar = self.audio {
