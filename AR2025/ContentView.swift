@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var x: Double = 0.0
     @State private var y: Double = 0.0
     @State private var z: Double = 0.0
+    @State private var score: Int = 0
     
     @State private var audio: AudioFileResource?
     @State private var subscriptions = [EventSubscription]() // Keep track of subscriptions
@@ -15,13 +16,22 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             // AR View takes most of the screen
-            ARContentView(x: $x, y: $y, z: $z, audio: $audio, subscriptions: $subscriptions)
+            ARContentView(x: $x, y: $y, z: $z, audio: $audio, subscriptions: $subscriptions, score: $score)
                 .edgesIgnoringSafeArea(.all)
             
-            // Control panel at the bottom
+            // Score display at the top
             VStack {
+                Text("Score: \(score)")
+                    .font(.title)
+                    .padding()
+                    .background(Color.black.opacity(0.7))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .padding(.top)
+                
                 Spacer()
                 
+                // Control panel at the bottom
                 VStack(spacing: 15) {
                     Text("Teapot Position Controls")
                         .font(.headline)
@@ -61,6 +71,7 @@ struct ARContentView: View {
     @Binding var z: Double
     @Binding var audio: AudioFileResource?
     @Binding var subscriptions: [EventSubscription]
+    @Binding var score: Int
     
     var body: some View {
         RealityView { content in
@@ -92,7 +103,7 @@ struct ARContentView: View {
             
             // Load and place the TV
             if let tv = try? await ModelEntity(named: "tv_retro") {
-                tv.position = [0, 0, -0.5] // Position to the right of the teapot
+                tv.position = [0, 0, 1] // Position to the right of the teapot
                 // tv.scale = [0.1, 0.1, 0.1] // Scale down the TV as these models can be large
                 // Generate default collision shapes for all mesh parts
                 tv.physicsBody? = PhysicsBodyComponent()
@@ -137,20 +148,33 @@ struct ARContentView: View {
             // Subscribe to collision events
             self.subscriptions.append(content.subscribe(to: CollisionEvents.Began.self) { event in
                 print("Collision detected!")
+                
+                // Check which entities are colliding
+                let entityA = event.entityA
+                let entityB = event.entityB
+                
+                // Only increment score if teapot and tv collide with each other
+                let teapotAndTvCollision = (entityA.name == "teapot" && entityB.name == "tv") ||
+                                          (entityA.name == "tv" && entityB.name == "teapot")
+                
+                if teapotAndTvCollision {
+                    // Increment score on the main thread
+                    DispatchQueue.main.async {
+                        self.score += 1
+                        print("Score increased to: \(self.score)")
+                    }
+                }
+                
                 if let ar = self.audio {
-                    // Check which entities are colliding
-                    let entityA = event.entityA
-                    let entityB = event.entityB
-                    
                     // Play sound on any of our models when they collide
                     let collidedEntity = entityA.name == "teapot" || entityA.name == "tv" ? entityA :
                                          entityB.name == "teapot" || entityB.name == "tv" ? entityB : nil
                     
                     if let entity = collidedEntity {
                         print("\(entity.name) collision - playing sound")
-//                        try? entity.stopAllAudio()
-//                        let playbackController = try? entity.playAudio(ar)
-//                        playbackController?.gain = 5.0  // Increase volume
+                        try? entity.stopAllAudio()
+                        let playbackController = try? entity.playAudio(ar)
+                        playbackController?.gain = 5.0  // Increase volume
                     }
                 }
             })
